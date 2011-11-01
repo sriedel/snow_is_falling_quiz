@@ -41,8 +41,8 @@ var Automata = {
   getAntecedent : function(state, i, j){
     var max_index = state.length-1;
     var antecedent = '';
-    for (var k = -1 ; k < 2 ; k++) {
-      for (var l = -1 ; l < 2 ; l++) {
+    for (var k = 1 ; k > -2 ; k--) {
+      for (var l = 1 ; l > -2; l--) {
         var _i = (i+k < 0 || i+k > max_index) ? (i+k < 0 ? max_index : 0) : i+k;  
         var _j = (j+l < 0 || j+l > max_index) ? (j+l < 0 ? max_index : 0) : j+l;  
         antecedent += state[_i][_j];
