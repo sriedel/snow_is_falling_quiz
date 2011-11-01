@@ -32,7 +32,7 @@ var Automata = {
     for (var i = 0; i < size; i++) {
       for (var j = 0; j < size; j++) {
         var antecedent = this.getAntecedent(oldState, i, j);
-        newState[i][j] = law[antecedent];
+        newState[i][j] = law[antecedent] || 0;
       }
     }
     return newState;
