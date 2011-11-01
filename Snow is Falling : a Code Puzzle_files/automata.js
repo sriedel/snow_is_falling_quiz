@@ -1,3 +1,7 @@
+// Implementes dendritic growth as described in section 
+// "A 3D CA model of ‘Free’ Dendritic growth" of 
+// http://sjsu.rudyrucker.com/~gauri.nadkarni/paper/
+
 var Automata = {
 
   resolution : 100,
@@ -6,55 +10,122 @@ var Automata = {
   frequency : 0.001,
   speed : 10,
   world : null,
-  law : {},
 
-  init : function(law){
+  init : function(){
     var self = this;
     this.world = jQuery('#world')[0];
-    this.law = law;
-    this.state = this.createState(this.resolution);
-    this.state_b = this.createState(this.resolution);
-    this.state = this.populateState(this.state, this.frequency);
-    this.run(this.state, this.state_b, this.law, this.world, this.resolution);
+    this.heatReleasedOnFreezing = 0.5;
+    this.solidLiquidInterfaceEnergy = 20;
+    this.coolingRate = 0.01;
+    this.solidState = this.createState(this.resolution );
+    this.tempState = this.createState( this.resolution );
+    this.solidState_b = this.createState(this.resolution );
+    this.tempState_b = this.createState( this.resolution );
+    this.solidState = this.populateState(this.solidState, this.frequency);
+    this.tempState = this.populateTempState( this.tempState );
+
+    this.run(this.solidState, this.tempState, 
+             this.solidState_b, this.tempState_b, 
+             this.world, this.resolution);
   },
 
-  run : function(oldState, newState, law, world, resolution){
+  run : function(oldSolidState, oldTempState, newSolidState, newTempState, world, resolution){
     var self = this;
-    this.renderState(oldState, world, resolution);
-    newState = this.writeNewState(oldState, newState, law);
+    this.renderState(oldSolidState, world, resolution);
+    newSolidState = this.writeNewSolidState(oldSolidState, oldTempState, newSolidState );
+    newTempState = this.writeNewTempState( oldTempState, newTempState );
+
     setTimeout(function(){
-      self.run(newState, oldState, law, world, resolution);
+      self.run(newSolidState, newTempState, oldSolidState, oldTempState, world, resolution);
     }, self.speed);
   },
 
-  writeNewState : function(oldState, newState, law){
-    var size = oldState.length;
+  writeNewSolidState : function(oldSolidState, oldTempState, newSolidState ){
+    var size = oldSolidState.length;
     for (var i = 0; i < size; i++) {
       for (var j = 0; j < size; j++) {
-        var antecedent = this.getAntecedent(oldState, i, j);
-        newState[i][j] = law[antecedent];
+        var solidNeighbors = this.solidNeighbors(oldSolidState, i, j);
+
+        if( oldSolidState[i][j] == 0 ) { // still liquid
+          var tempCoefficient = ( solidNeighbors == 0 ) ? 0 : 1 / solidNeighbors;
+          var critTemp = -this.solidLiquidInterfaceEnergy * tempCoefficient;
+          if( solidNeighbors >= 2 && oldTempState[i][j] <= critTemp ) {
+            console.log( "Critical temp: " + critTemp + " and real temp: " + oldTempState[i][j] );
+            newSolidState[i][j] = 1;
+            oldTempState[i][j] += this.heatReleasedOnFreezing;
+          } else {
+            newSolidState[i][j] = oldSolidState[i][j];
+          }
+        } else { // as a solid, check if we need to melt
+          if( oldTempState[i][j] > 0 ) {
+            newSolidState[i][j] = 0;
+            oldTempState[i][j] -= this.heatReleasedOnFreezing;
+          } else {
+            newSolidState[i][j] = oldSolidState[i][j];
+          }
+        }
       }
     }
-    return newState;
+    return newSolidState;
   },
 
-  getAntecedent : function(state, i, j){
-    var max_index = state.length-1;
-    var antecedent = '';
-    for (var k = -1 ; k < 2 ; k++) {
-      for (var l = -1 ; l < 2 ; l++) {
-        var _i = (i+k < 0 || i+k > max_index) ? (i+k < 0 ? max_index : 0) : i+k;  
-        var _j = (j+l < 0 || j+l > max_index) ? (j+l < 0 ? max_index : 0) : j+l;  
-        antecedent += state[_i][_j];
+  writeNewTempState : function( oldTempState, newTempState ) {
+    var size = oldTempState.length;
+    for (var i = 0; i < size; i++) {
+      for (var j = 0; j < size; j++) {
+        newTempState[i][j] = oldTempState[i][j] + 
+                             this.coolingRate * this.averageNeighborhoodTemp( oldTempState, i, j );
       }
     }
-    return antecedent;
+    return newTempState;
+  },
+
+  averageNeighborhoodTemp : function( state, i, j ) {
+    var max_index = state.length-1;
+    var temp = 0;
+    var count = 0;
+
+    for (var k = -1 ; k < 2 ; k++) {
+      for (var l = -1 ; l < 2 ; l++) {
+        if( ( k != 0 && l != 0 ) || ( k == 0 && l == 0 ) ) {
+          // for now only take the neighbor directly 
+          // above, below, left and right
+          continue;
+        }
+
+        var _i = (i+k < 0 || i+k > max_index) ? (i+k < 0 ? max_index : 0) : i+k;  
+        var _j = (j+l < 0 || j+l > max_index) ? (j+l < 0 ? max_index : 0) : j+l;  
+        temp += state[_i][_j];
+        ++count;
+      }
+    }
+    return temp / count;
+  },
+
+  solidNeighbors : function(state, i, j){
+    var max_index = state.length-1;
+    var count = 0;
+    for (var k = -1 ; k < 2 ; k++) {
+      for (var l = -1 ; l < 2 ; l++) {
+        if( k == 0 && l == 0 ) { // don't count ourselves as neighbors
+          continue;
+        }
+
+        var _i = (i+k < 0 || i+k > max_index) ? (i+k < 0 ? max_index : 0) : i+k;  
+        var _j = (j+l < 0 || j+l > max_index) ? (j+l < 0 ? max_index : 0) : j+l;  
+        count += state[_i][_j] || 0;
+      }
+    }
+    return count;
   },
   
   createState : function(resolution){
     var state = new Array(resolution);
     for (var i = 0 ; i < resolution ; i++) {
       state[i] = new Array(resolution);
+      for (var j = 0; j < resolution ; j++) {
+        state[i][j] = 0;
+      }
     }
     return state;
   },
@@ -63,7 +134,31 @@ var Automata = {
     var size = state.length;
     for (var i = 0; i < size; i++) {
       for (var j = 0 ; j < size; j++) {
-        state[i][j] = Math.random()<frequency ? 1 : 0;  
+        if( Math.random() < frequency ) {
+          // generate a 3x3 seed for the ice flowers to start growing
+          this.setNeighborhoodToOne( state, i, j );
+        }
+      }
+    }
+    return state;
+  },
+
+  setNeighborhoodToOne : function( state, i, j ) {
+    var max_index = state.length-1;
+
+    for (var k = -1 ; k < 2 ; k++) {
+      for (var l = -1 ; l < 2 ; l++) {
+        var _i = (i+k < 0 || i+k > max_index) ? (i+k < 0 ? max_index : 0) : i+k;  
+        var _j = (j+l < 0 || j+l > max_index) ? (j+l < 0 ? max_index : 0) : j+l;  
+        state[_i][_j] = 1;
+      }
+    }
+  },
+  populateTempState : function( state ) {
+    var size = state.length;
+    for (var i = 0; i < size; i++) {
+      for (var j = 0 ; j < size; j++) {
+        state[i][j] = 0 + ( Math.random()*6 - 3 );
       }
     }
     return state;
