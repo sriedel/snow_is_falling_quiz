@@ -12,6 +12,11 @@ var Automata = {
     var self = this;
     this.world = jQuery('#world')[0];
     this.law = law;
+
+    this.round = 0;
+    this.benchmarkRounds = 10;
+    this.lastBenchmarkTimestamp = Date.now();
+
     this.state = this.createState(this.resolution);
     this.state_b = this.createState(this.resolution);
     this.state = this.populateState(this.state, this.frequency);
@@ -22,6 +27,15 @@ var Automata = {
     var self = this;
     this.renderState(oldState, world, resolution);
     newState = this.writeNewState(oldState, newState, law);
+
+    if( ++this.round % this.benchmarkRounds === 0 ) {
+      var now = Date.now();
+      var timeDiff = now - this.lastBenchmarkTimestamp;
+      console.log( "Last " + this.benchmarkRounds + " rounds: " + 
+                   timeDiff + "ms, ~" + 100 / timeDiff + " rounds/ms" );
+      this.lastBenchmarkTimestamp = now;
+    }
+
     setTimeout(function(){
       self.run(newState, oldState, law, world, resolution);
     }, self.speed);
