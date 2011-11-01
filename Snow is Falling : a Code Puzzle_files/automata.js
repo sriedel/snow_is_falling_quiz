@@ -77,7 +77,7 @@ var Automata = {
       for (var j = 0; j < size; j++){
         if (state[i][j]){
           // Editing the css on this line is a cheap and dirty way to 'solve' the problem without really thinking about it 
-          html+='<div class="cell" style="height:'+cellSize+'%;width:'+cellSize+'%;left:'+cellSize*i+'%;top:'+cellSize*j+'%"></div>';
+          html+='<div class="cell" style="height:'+cellSize+'%;width:'+cellSize+'%;left:'+cellSize*i+'%;bottom:'+cellSize*j+'%"></div>';
         }
       }
     }
